@@ -1,0 +1,79 @@
+name: thingconnect-gateway
+base: core24
+version: "1.0.4"
+summary: ThingConnect Gateway and CLI
+description: |
+  ThingConnect Gateway (daemon) and CLI packaged as a snap.
+
+grade: devel
+confinement: strict
+
+platforms:
+  arm64:
+    build-on: [amd64]
+    build-for: [arm64]
+
+parts:
+  gateway:
+    plugin: dump
+    source: src/ThingConnect.Gateway/bin/Release/net8.0/linux-arm64/publish
+    source-type: local
+    organize:
+      "ThingConnect.Gateway": "bin/ThingConnect.Gateway"
+      "appsettings.json": "appsettings.json"
+
+  cli:
+    plugin: dump
+    source: src/ThingConnect.Gateway.CLI/bin/Release/net8.0/linux-arm64/publish
+    source-type: local
+    organize:
+      "ThingConnect.Gateway.CLI": "bin/ThingConnect.Gateway.CLI"
+
+# Optional ICU part: uncomment if you prefer bundling ICU instead of invariant mode
+#icu:
+#  plugin: nil
+#  stage-packages:
+#    - libicu74
+
+apps:
+  tc-gateway:
+    command: bin/ThingConnect.Gateway
+    daemon: simple
+    restart-condition: always
+    environment:
+      # prevents missing-ICU crash on minimal systems
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+
+      # Kestrel binding (optional if your app already sets this)
+      ASPNETCORE_URLS: "http://0.0.0.0:5000"
+      ASPNETCORE_Kestrel__EndpointDefaults__Protocols: "Http2"
+
+      # IMPORTANT: Map env vars to the JSON config keys your app uses.
+      # These override values in appsettings.json at runtime.
+      GATEWAYRABBITMQ__HOSTNAME: "127.0.0.1"
+      GATEWAYRABBITMQ__PORT: "5672"
+      GATEWAYRABBITMQ__USERNAME: "tcuser"
+      GATEWAYRABBITMQ__PASSWORD: "tcpass"
+      GATEWAYRABBITMQ__VIRTUALHOST: "/"
+
+      SERVERRABBITMQ__HOSTNAME: "127.0.0.1"
+      SERVERRABBITMQ__PORT: "5672"
+      SERVERRABBITMQ__USERNAME: "tcuser"
+      SERVERRABBITMQ__PASSWORD: "tcpass"
+      SERVERRABBITMQ__VIRTUALHOST: "/"
+
+      # Writable paths for DB/logs used by your app — adjust keys if your app reads other names
+      TC_DB_PATH: "$SNAP_COMMON/rocksdb"
+      TC_LOG_DIR: "$SNAP_COMMON/logs"
+    plugs:
+      - network
+      - network-bind
+
+  tc-cli:
+    command: bin/ThingConnect.Gateway.CLI
+    environment:
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+      # If you want the CLI to target a remote gateway instead of localhost, set:
+      # GATEWAY__ENDPOINT: "http://<gateway-ip>:5000"
+    plugs:
+      - network
